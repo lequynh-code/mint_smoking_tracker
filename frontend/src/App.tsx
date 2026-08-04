@@ -1,6 +1,32 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import SmokingTracker from './pages/SmokingTracker';
 import TamGiaoApp from './pages/TamGiaoApp';
+import { useEffect } from 'react';
+
+declare global {
+  interface Window {
+    Telegram?: any;
+  }
+}
+
+function App() {
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand(); // Mở rộng ứng dụng toàn màn hình Telegram
+    }
+  }, []);
+
+  // Lấy thông tin user Telegram
+  const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
+
+  return (
+    <div>
+      <h1>Xin chào, {user?.first_name || 'Bạn'}!</h1>
+    </div>
+  );
+}
 
 export default function App() {
   return (
