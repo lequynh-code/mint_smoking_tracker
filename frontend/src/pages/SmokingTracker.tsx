@@ -5,6 +5,7 @@ export default function SmokingTracker() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
+  // Mặc định chọn tháng & năm hiện tại
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
 
@@ -13,6 +14,7 @@ export default function SmokingTracker() {
     return tgUser?.id ? String(tgUser.id) : 'demo_user';
   };
 
+  // Hàm tải dữ liệu phân tích theo Tháng / Năm đang chọn
   const fetchAnalytics = async (selectedMonth: number, selectedYear: number) => {
     setLoading(true);
     try {
@@ -23,9 +25,11 @@ export default function SmokingTracker() {
         setCount(data.total || 0);
       } else {
         setCount(0);
+        setAnalytics(null);
       }
     } catch (e) {
       console.error('Lỗi lấy dữ liệu:', e);
+      setCount(0);
     } finally {
       setLoading(false);
     }
@@ -35,37 +39,46 @@ export default function SmokingTracker() {
     fetchAnalytics(month, year);
   }, [month, year]);
 
-  // Xử lý CỘNG (+1)
+  // Xử lý CỘNG (+1) -> Truyền cả month & year lên Backend
   const handleAddCigarette = async () => {
-    // 1. Tăng ngay trên màn hình để giao diện phản hồi lập tức
     setCount(prev => prev + 1);
 
     try {
       await fetch('/api/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: getUserId(), action: 'add' })
+        body: JSON.stringify({ 
+          user_id: getUserId(), 
+          action: 'add',
+          month: month, // Gửi tháng đang chọn
+          year: year    // Gửi năm đang chọn
+        })
       });
+      // Tải lại dữ liệu mới nhất
       fetchAnalytics(month, year);
     } catch (e) {
       console.error('Lỗi cộng điếu:', e);
-      // Nếu lỗi thì hoàn tác
+      // Hoàn tác nếu lỗi
       setCount(prev => Math.max(0, prev - 1));
     }
   };
 
-  // Xử lý TRỪ (-1)
+  // Xử lý TRỪ (-1) -> Truyền cả month & year để xóa đúng bản ghi thuộc tháng đó
   const handleRemoveCigarette = async () => {
     if (count <= 0) return;
 
-    // 1. Giảm ngay trên màn hình
     setCount(prev => Math.max(0, prev - 1));
 
     try {
       await fetch('/api/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: getUserId(), action: 'delete' })
+        body: JSON.stringify({ 
+          user_id: getUserId(), 
+          action: 'delete',
+          month: month, // Gửi tháng đang chọn
+          year: year    // Gửi năm đang chọn
+        })
       });
       fetchAnalytics(month, year);
     } catch (e) {
@@ -152,7 +165,7 @@ export default function SmokingTracker() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '15px' }}>
           <div style={{ background: '#fafafa', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
             <small style={{ color: '#666' }}>Trung bình/ngày</small>
-            <h3 style={{ margin: '4px 0', color: '#1976d2' }}>{analytics.avgPerDay} điếu</h3>
+            <h3 style={{ margin: '4px 0', color: '#1976d2' }}>{analytics.avgPerDay || '0'} điếu</h3>
           </div>
           <div style={{ background: '#fafafa', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
             <small style={{ color: '#666' }}>Chi phí ước tính</small>
