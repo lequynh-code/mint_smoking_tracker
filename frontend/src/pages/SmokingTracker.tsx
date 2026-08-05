@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react';
 export default function SmokingTracker() {
   const [count, setCount] = useState<number>(0);
   const [analytics, setAnalytics] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  
+  // Mặc định chọn tháng/năm hiện tại
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
 
@@ -11,33 +14,43 @@ export default function SmokingTracker() {
     return tgUser?.id ? String(tgUser.id) : 'demo_user';
   };
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (selectedMonth: number, selectedYear: number) => {
+    setLoading(true);
     try {
-      const res = await fetch(`/api/analytics?user_id=${getUserId()}&year=${year}&month=${month}`);
-      const data = await res.json();
-      setAnalytics(data);
-      setCount(data.total || 0);
+      const res = await fetch(`/api/analytics?user_id=${getUserId()}&year=${selectedYear}&month=${selectedMonth}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+        setCount(data.total || 0); // Gán số điếu đúng của tháng đó
+      } else {
+        setCount(0);
+      }
     } catch (e) {
-      console.error(e);
+      console.error('Lỗi lấy dữ liệu tháng:', e);
+      setCount(0);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Tự động gọi API mỗi khi biến month hoặc year thay đổi
   useEffect(() => {
-    fetchAnalytics();
+    fetchAnalytics(month, year);
   }, [month, year]);
 
   const handleAddCigarette = async () => {
-    // 1. Cập nhật giao diện tạm thời cho mượt
-    setCount(prev => prev + 1);
-
-    // 2. Gửi request lưu lên Cloudflare D1 Database
     try {
+      // Gửi timestamp chính xác lên server
       await fetch('/api/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: getUserId() })
+        body: JSON.stringify({ 
+          user_id: getUserId(),
+          created_at: new Date().toISOString()
+        })
       });
-      fetchAnalytics(); // Làm mới lại số liệu phân tích
+      // Load lại đúng số liệu tháng đang chọn
+      fetchAnalytics(month, year);
     } catch (e) {
       console.error('Lỗi lưu log:', e);
     }
@@ -45,12 +58,13 @@ export default function SmokingTracker() {
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: 480, margin: '0 auto' }}>
-      <h2>🚬 Nhật Ký Hút Thuốc & Phân Tích</h2>
+      <h2 style={{ textAlign: 'center' }}>🚬 Nhật Ký Hút Thuốc & Phân Tích</h2>
 
+      {/* Thẻ hiển thị số điếu của tháng đang chọn */}
       <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '12px', textAlign: 'center', margin: '20px 0' }}>
         <p style={{ color: '#666', margin: 0 }}>Số điếu đã hút trong tháng {month}/{year}</p>
         <h1 style={{ fontSize: '48px', color: '#2e7d32', margin: '10px 0' }}>
-          {count} <span style={{ fontSize: '20px' }}>điếu</span>
+          {loading ? '...' : count} <span style={{ fontSize: '20px' }}>điếu</span>
         </h1>
       </div>
 
@@ -72,29 +86,40 @@ export default function SmokingTracker() {
         🚬 Vừa hút 1 điếu (+1)
       </button>
 
-      {/* Khu vực chọn tháng xem báo cáo */}
+      {/* Bộ lọc Tháng / Năm */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-        <select value={month} onChange={(e) => setMonth(Number(e.target.value))} style={{ flex: 1, padding: 8, borderRadius: 8 }}>
+        <select 
+          value={month} 
+          onChange={(e) => setMonth(Number(e.target.value))} 
+          style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '15px', border: '1px solid #ccc' }}
+        >
           {Array.from({ length: 12 }, (_, i) => (
             <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
           ))}
         </select>
-        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ flex: 1, padding: 8, borderRadius: 8 }}>
+
+        <select 
+          value={year} 
+          onChange={(e) => setYear(Number(e.target.value))} 
+          style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '15px', border: '1px solid #ccc' }}
+        >
           <option value={2025}>2025</option>
           <option value={2026}>2026</option>
         </select>
       </div>
 
-      {/* Thẻ hiển thị số liệu phân tích */}
+      {/* Khung Phân Tích Thống Kê */}
       {analytics && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '15px' }}>
           <div style={{ background: '#fafafa', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
             <small style={{ color: '#666' }}>Trung bình/ngày</small>
             <h3 style={{ margin: '4px 0', color: '#1976d2' }}>{analytics.avgPerDay} điếu</h3>
           </div>
           <div style={{ background: '#fafafa', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
             <small style={{ color: '#666' }}>Chi phí ước tính</small>
-            <h3 style={{ margin: '4px 0', color: '#d32f2f' }}>{analytics.estimatedCost?.toLocaleString('vi-VN')} đ</h3>
+            <h3 style={{ margin: '4px 0', color: '#d32f2f' }}>
+              {Number(analytics.estimatedCost || 0).toLocaleString('vi-VN')} đ
+            </h3>
           </div>
         </div>
       )}
