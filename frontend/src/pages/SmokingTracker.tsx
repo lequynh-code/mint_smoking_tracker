@@ -1,54 +1,54 @@
 import { useState, useEffect } from 'react';
 
 export default function SmokingTracker() {
-  const [userName, setUserName] = useState<string>('Bạn');
   const [count, setCount] = useState<number>(0);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+
+  const getUserId = () => {
+    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    return tgUser?.id ? String(tgUser.id) : 'demo_user';
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const res = await fetch(`/api/analytics?user_id=${getUserId()}&year=${year}&month=${month}`);
+      const data = await res.json();
+      setAnalytics(data);
+      setCount(data.total || 0);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
-    // 1. Lấy tên user Telegram
-    const tg = window.Telegram?.WebApp;
-    const user = tg?.initDataUnsafe?.user;
-    if (user?.first_name) {
-      setUserName(user.first_name);
+    fetchAnalytics();
+  }, [month, year]);
+
+  const handleAddCigarette = async () => {
+    // 1. Cập nhật giao diện tạm thời cho mượt
+    setCount(prev => prev + 1);
+
+    // 2. Gửi request lưu lên Cloudflare D1 Database
+    try {
+      await fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: getUserId() })
+      });
+      fetchAnalytics(); // Làm mới lại số liệu phân tích
+    } catch (e) {
+      console.error('Lỗi lưu log:', e);
     }
-
-    // 2. Tải số điếu đã lưu từ localStorage
-    const savedCount = localStorage.getItem('smoking_today');
-    const savedDate = localStorage.getItem('smoking_date');
-    const today = new Date().toDateString();
-
-    if (savedDate !== today) {
-      // Sang ngày mới -> Reset về 0
-      localStorage.setItem('smoking_date', today);
-      localStorage.setItem('smoking_today', '0');
-      setCount(0);
-    } else if (savedCount) {
-      setCount(parseInt(savedCount, 10));
-    }
-  }, []);
-
-  // 3. Hàm bấm nút "Vừa hút 1 điếu"
-  const handleAddCigarette = () => {
-    const newCount = count + 1;
-    setCount(newCount);
-
-    const today = new Date().toDateString();
-    localStorage.setItem('smoking_today', newCount.toString());
-    localStorage.setItem('smoking_date', today);
-
-    // Lưu log thời gian chi tiết
-    const logs = JSON.parse(localStorage.getItem('smoking_logs') || '[]');
-    logs.push({ timestamp: new Date().toISOString() });
-    localStorage.setItem('smoking_logs', JSON.stringify(logs));
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <h2>🚬 Nhật Ký Hút Thuốc</h2>
-      <p>Xin chào, <strong>{userName}</strong>!</p>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: 480, margin: '0 auto' }}>
+      <h2>🚬 Nhật Ký Hút Thuốc & Phân Tích</h2>
 
       <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '12px', textAlign: 'center', margin: '20px 0' }}>
-        <p style={{ color: '#666', margin: 0 }}>Số điếu đã hút hôm nay</p>
+        <p style={{ color: '#666', margin: 0 }}>Số điếu đã hút trong tháng {month}/{year}</p>
         <h1 style={{ fontSize: '48px', color: '#2e7d32', margin: '10px 0' }}>
           {count} <span style={{ fontSize: '20px' }}>điếu</span>
         </h1>
@@ -65,15 +65,39 @@ export default function SmokingTracker() {
           borderRadius: '12px',
           fontSize: '18px',
           fontWeight: 'bold',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          marginBottom: '20px'
         }}
       >
         🚬 Vừa hút 1 điếu (+1)
       </button>
 
-      <div style={{ marginTop: '20px', background: '#fafafa', padding: '12px', borderRadius: '8px', fontSize: '13px', color: '#666' }}>
-        <strong>Lời khuyên:</strong> Hãy giãn khoảng cách giữa các lần hút tối thiểu 2 tiếng để bảo vệ sức khỏe.
+      {/* Khu vực chọn tháng xem báo cáo */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+        <select value={month} onChange={(e) => setMonth(Number(e.target.value))} style={{ flex: 1, padding: 8, borderRadius: 8 }}>
+          {Array.from({ length: 12 }, (_, i) => (
+            <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+          ))}
+        </select>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ flex: 1, padding: 8, borderRadius: 8 }}>
+          <option value={2025}>2025</option>
+          <option value={2026}>2026</option>
+        </select>
       </div>
+
+      {/* Thẻ hiển thị số liệu phân tích */}
+      {analytics && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ background: '#fafafa', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
+            <small style={{ color: '#666' }}>Trung bình/ngày</small>
+            <h3 style={{ margin: '4px 0', color: '#1976d2' }}>{analytics.avgPerDay} điếu</h3>
+          </div>
+          <div style={{ background: '#fafafa', padding: '12px', borderRadius: '8px', border: '1px solid #eee' }}>
+            <small style={{ color: '#666' }}>Chi phí ước tính</small>
+            <h3 style={{ margin: '4px 0', color: '#d32f2f' }}>{analytics.estimatedCost?.toLocaleString('vi-VN')} đ</h3>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
