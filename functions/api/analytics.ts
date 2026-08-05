@@ -5,33 +5,47 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
   const monthStr = url.searchParams.get('month');
 
   if (!user_id || !yearStr || !monthStr) {
-    return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'Missing parameters' }), { 
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
-  const targetYearMonth = `${year}-${String(month).padStart(2, '0')}`;
+
+  // Tạo dải ngày lọc chuẩn: 2026-08-01 00:00:00 -> 2026-09-01 00:00:00
+  const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const startOfNextMonth = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01 00:00:00`;
 
   try {
-    // Ép kiểu created_at về dạng YYYY-MM bằng strftime của SQLite
+    // Tự động kiểm tra & tạo bảng nếu chưa có
+    await context.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS smoking_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+
     const summary: any = await context.env.DB.prepare(`
       SELECT 
         COUNT(*) as total_cigarettes,
         COUNT(DISTINCT DATE(created_at)) as active_days
       FROM smoking_logs 
       WHERE user_id = ? 
-        AND (
-          strftime('%Y-%m', created_at) = ? 
-          OR strftime('%Y-%m', datetime(created_at, 'unixepoch')) = ?
-        )
-    `).bind(user_id, targetYearMonth, targetYearMonth).first();
+        AND created_at >= ? 
+        AND created_at < ?
+    `).bind(user_id, startOfMonth, startOfNextMonth).first();
 
     const total = summary?.total_cigarettes || 0;
     const activeDays = summary?.active_days || 0;
     const avgPerDay = activeDays > 0 ? (total / activeDays).toFixed(1) : '0';
 
     return new Response(JSON.stringify({
-      month: targetYearMonth,
+      month: `${year}-${String(month).padStart(2, '0')}`,
       total: total,
       activeDays: activeDays,
       avgPerDay: avgPerDay,
@@ -43,6 +57,9 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
       }
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
