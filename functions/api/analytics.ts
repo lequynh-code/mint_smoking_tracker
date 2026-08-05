@@ -20,7 +20,7 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
     const total = summaryResult?.total || 0;
     const activeDays = summaryResult?.active_days || 0;
     const avgPerDay = activeDays > 0 ? (total / activeDays).toFixed(1) : '0';
-    const estimatedCost = total * 1500; // 1.500đ / điếu
+    const estimatedCost = total * 1000; // 1.000đ / điếu
 
     // 2. Dữ liệu số điếu theo từng ngày trong tháng (Dùng vẽ biểu đồ ngày)
     const dailyResult: any = await context.env.DB.prepare(`
