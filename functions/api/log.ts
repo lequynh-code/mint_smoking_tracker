@@ -7,7 +7,6 @@ export async function onRequestPost(context: { request: Request; env: { DB: any 
     }
 
     if (action === 'delete') {
-      // Xóa 1 điếu mới nhất của user
       await context.env.DB.prepare(`
         DELETE FROM smoking_logs 
         WHERE id = (
@@ -21,11 +20,10 @@ export async function onRequestPost(context: { request: Request; env: { DB: any 
         headers: { 'Content-Type': 'application/json' }
       });
     } else {
-      // Thêm 1 điếu kèm ISO string thời gian chính xác
-      const now = new Date().toISOString().replace('T', ' ').substring(0, 19); // YYYY-MM-DD HH:MM:SS
+      // Dùng CURRENT_TIMESTAMP trực tiếp từ SQLite engine để đảm bảo chuẩn ISO UTC (YYYY-MM-DD HH:MM:SS)
       await context.env.DB.prepare(
-        'INSERT INTO smoking_logs (user_id, created_at) VALUES (?, ?)'
-      ).bind(user_id, now).run();
+        'INSERT INTO smoking_logs (user_id, created_at) VALUES (?, CURRENT_TIMESTAMP)'
+      ).bind(user_id).run();
 
       return new Response(JSON.stringify({ success: true, action: 'added' }), {
         headers: { 'Content-Type': 'application/json' }
