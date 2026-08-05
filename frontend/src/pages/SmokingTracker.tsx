@@ -1,108 +1,78 @@
-import { useEffect, useState } from 'react';
-import WebApp from '@twa-dev/sdk';
-import axios from 'axios';
-import { Cigarette, HeartPulse, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function SmokingTracker() {
-  const [todayCount, setTodayCount] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-  // Lấy đối tượng Telegram WebApp an toàn
-  const tg = (WebApp as any)?.default || WebApp;
+  const [userName, setUserName] = useState<string>('Bạn');
+  const [count, setCount] = useState<number>(0);
 
   useEffect(() => {
-    try {
-      if (tg && typeof tg.ready === 'function') {
-        tg.ready();
-        tg.expand();
-      }
-    } catch (e) {
-      console.warn('Đang test ngoài Telegram');
+    // 1. Lấy tên user Telegram
+    const tg = window.Telegram?.WebApp;
+    const user = tg?.initDataUnsafe?.user;
+    if (user?.first_name) {
+      setUserName(user.first_name);
     }
-    fetchStats();
+
+    // 2. Tải số điếu đã lưu từ localStorage
+    const savedCount = localStorage.getItem('smoking_today');
+    const savedDate = localStorage.getItem('smoking_date');
+    const today = new Date().toDateString();
+
+    if (savedDate !== today) {
+      // Sang ngày mới -> Reset về 0
+      localStorage.setItem('smoking_date', today);
+      localStorage.setItem('smoking_today', '0');
+      setCount(0);
+    } else if (savedCount) {
+      setCount(parseInt(savedCount, 10));
+    }
   }, []);
 
-  const fetchStats = async () => {
-    try {
-      const res = await axios.post(`${API_URL}/api/track/stats`, { 
-        initData: tg?.initData || '' 
-      });
-      setTodayCount(res.data.todayCount || 0);
-    } catch (e) {
-      console.error('Lỗi tải dữ liệu:', e);
-    }
-  };
+  // 3. Hàm bấm nút "Vừa hút 1 điếu"
+  const handleAddCigarette = () => {
+    const newCount = count + 1;
+    setCount(newCount);
 
-  const logSmoking = async () => {
-    setLoading(true);
-    try {
-      if (tg?.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('medium');
-      }
-    } catch (e) {}
+    const today = new Date().toDateString();
+    localStorage.setItem('smoking_today', newCount.toString());
+    localStorage.setItem('smoking_date', today);
 
-    try {
-      await axios.post(`${API_URL}/api/track/log`, { 
-        initData: tg?.initData || '' 
-      });
-      setTodayCount(prev => prev + 1);
-      
-      if (tg?.showAlert) {
-        tg.showAlert('Đã ghi nhận 1 điếu!');
-      } else {
-        alert('Đã ghi nhận 1 điếu!');
-      }
-    } catch (e) {
-      alert('Không thể kết nối Backend!');
-    } finally {
-      setLoading(false);
-    }
+    // Lưu log thời gian chi tiết
+    const logs = JSON.parse(localStorage.getItem('smoking_logs') || '[]');
+    logs.push({ timestamp: new Date().toISOString() });
+    localStorage.setItem('smoking_logs', JSON.stringify(logs));
   };
 
   return (
-    <div style={{ padding: 20, textAlign: 'center', fontFamily: 'sans-serif', maxWidth: 480, margin: '0 auto' }}>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h2>🚬 Nhật Ký Hút Thuốc</h2>
-      <p style={{ color: '#666' }}>
-        Xin chào, <b>{tg?.initDataUnsafe?.user?.first_name || 'Bạn'}</b>!
-      </p>
+      <p>Xin chào, <strong>{userName}</strong>!</p>
 
-      <div style={{ background: '#f5f5f5', borderRadius: 16, padding: '24px 16px', margin: '24px 0' }}>
-        <p style={{ margin: 0, color: '#888', fontSize: 14 }}>Số điếu đã hút hôm nay</p>
-        <h1 style={{ fontSize: 56, margin: '12px 0', color: todayCount > 10 ? '#d32f2f' : '#2e7d32' }}>
-          {todayCount} <span style={{ fontSize: 20, fontWeight: 'normal' }}>điếu</span>
+      <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '12px', textAlign: 'center', margin: '20px 0' }}>
+        <p style={{ color: '#666', margin: 0 }}>Số điếu đã hút hôm nay</p>
+        <h1 style={{ fontSize: '48px', color: '#2e7d32', margin: '10px 0' }}>
+          {count} <span style={{ fontSize: '20px' }}>điếu</span>
         </h1>
       </div>
 
       <button
-        onClick={logSmoking}
-        disabled={loading}
+        onClick={handleAddCigarette}
         style={{
           width: '100%',
           padding: '16px',
-          borderRadius: 12,
-          backgroundColor: loading ? '#ccc' : '#ff4d4f',
+          backgroundColor: '#ff4d4f',
           color: '#fff',
-          fontSize: 18,
-          fontWeight: 'bold',
           border: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          cursor: loading ? 'not-allowed' : 'pointer',
-          boxShadow: '0 4px 12px rgba(255, 77, 79, 0.3)'
+          borderRadius: '12px',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          cursor: 'pointer'
         }}
       >
-        {loading ? <RefreshCw className="animate-spin" /> : <Cigarette />} 
-        Vừa hút 1 điếu (+1)
+        🚬 Vừa hút 1 điếu (+1)
       </button>
 
-      <div style={{ marginTop: 32, textAlign: 'left', fontSize: 13, color: '#777', backgroundColor: '#f9f9f9', padding: 12, borderRadius: 8 }}>
-        <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <HeartPulse size={16} color="#d32f2f" />
-          <b>Lời khuyên:</b> Hãy giãn khoảng cách giữa các lần hút tối thiểu 2 tiếng để bảo vệ sức khỏe.
-        </p>
+      <div style={{ marginTop: '20px', background: '#fafafa', padding: '12px', borderRadius: '8px', fontSize: '13px', color: '#666' }}>
+        <strong>Lời khuyên:</strong> Hãy giãn khoảng cách giữa các lần hút tối thiểu 2 tiếng để bảo vệ sức khỏe.
       </div>
     </div>
   );

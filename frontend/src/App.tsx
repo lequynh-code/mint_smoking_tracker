@@ -9,32 +9,19 @@ declare global {
   }
 }
 
-function App() {
+export default function App() {
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.ready();
-      tg.expand(); // Mở rộng ứng dụng toàn màn hình Telegram
+      tg.expand(); // Mở rộng toàn màn hình Telegram
     }
   }, []);
 
-  // Lấy thông tin user Telegram
-  const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
-
-  return (
-    <div>
-      <h1>Xin chào, {user?.first_name || 'Bạn'}!</h1>
-    </div>
-  );
-}
-
-export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Tự động chuyển trang chủ sang /tracker */}
         <Route path="/" element={<Navigate to="/tracker" replace />} />
-        
         <Route path="/tracker" element={<SmokingTracker />} />
         <Route path="/tamgiao" element={<TamGiaoApp />} />
         <Route path="*" element={
