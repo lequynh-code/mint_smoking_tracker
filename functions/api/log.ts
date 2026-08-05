@@ -3,14 +3,11 @@ export async function onRequestPost(context: { request: Request; env: { DB: any 
     const { user_id, action } = await context.request.json() as { user_id: string; action?: string };
     
     if (!user_id) {
-      return new Response(JSON.stringify({ error: 'Missing user_id' }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new Response(JSON.stringify({ error: 'Missing user_id' }), { status: 400 });
     }
 
     if (action === 'delete') {
-      // Xóa 1 lượt ghi nhận gần nhất của user trong tháng/ngày hiện tại
+      // Xóa 1 điếu mới nhất của user
       await context.env.DB.prepare(`
         DELETE FROM smoking_logs 
         WHERE id = (
@@ -24,19 +21,17 @@ export async function onRequestPost(context: { request: Request; env: { DB: any 
         headers: { 'Content-Type': 'application/json' }
       });
     } else {
-      // Thêm 1 điếu mới (+1)
+      // Thêm 1 điếu kèm ISO string thời gian chính xác
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 19); // YYYY-MM-DD HH:MM:SS
       await context.env.DB.prepare(
-        'INSERT INTO smoking_logs (user_id) VALUES (?)'
-      ).bind(user_id).run();
+        'INSERT INTO smoking_logs (user_id, created_at) VALUES (?, ?)'
+      ).bind(user_id, now).run();
 
       return new Response(JSON.stringify({ success: true, action: 'added' }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
