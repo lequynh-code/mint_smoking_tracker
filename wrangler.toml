@@ -2,6 +2,6 @@ name = "mint-smoking-tracker"
 compatibility_date = "2026-08-01"
 
 [[d1_databases]]
-binding = "mint_smoking_db"
+binding = "DB"
 database_name = "mint-smoking-db"
 database_id = "1823b9ac-8d6e-4d58-9010-54ca36553137"
