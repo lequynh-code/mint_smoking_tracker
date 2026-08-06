@@ -95,16 +95,25 @@ export default function SmokingTracker() {
     }
   };
 
-  // --- TÍNH TOÁN DỮ LIỆU ĐẦY ĐỦ 30/31 NGÀY TRONG THÁNG ---
+  // --- TÍNH TOÁN DỮ LIỆU ĐẦY ĐỦ CÁC NGÀY TRONG THÁNG ---
   const daysInMonth = new Date(year, month, 0).getDate();
   const rawDailyLogs = analytics?.dailyLogs || analytics?.daily || [];
 
+  // Sử dụng Map để ghép dữ liệu O(1) và ép kiểu an toàn
+  const logMap = new Map<number, number>();
+  rawDailyLogs.forEach((item: any) => {
+    const d = parseInt(String(item.day), 10);
+    const c = parseInt(String(item.count), 10);
+    if (!isNaN(d)) {
+      logMap.set(d, isNaN(c) ? 0 : c);
+    }
+  });
+
   const fullMonthData = Array.from({ length: daysInMonth }, (_, i) => {
     const dayNum = i + 1;
-    const found = rawDailyLogs.find((item: any) => Number(item.day) === dayNum);
     return {
       day: dayNum,
-      count: found ? Number(found.count) : 0 // Ép kiểu Number để chắc chắn vẽ được cột
+      count: logMap.get(dayNum) || 0
     };
   });
 
@@ -197,9 +206,24 @@ export default function SmokingTracker() {
                     tick={{ fontSize: 10, fill: '#8c8c8c' }} 
                   />
                   
+                  {/* Custom Tooltip đọc trực tiếp dữ liệu từ Payload */}
                   <Tooltip 
-                    formatter={(value: any) => [`${value} điếu`, 'Số lượng']} 
-                    labelFormatter={(label) => `Ngày ${label}/${month}`} 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div style={{ background: '#fff', padding: '8px 12px', border: '1px solid #ccc', borderRadius: '6px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                            <p style={{ margin: 0, fontWeight: 'bold', color: '#333' }}>
+                              Ngày {data.day}/{month}
+                            </p>
+                            <p style={{ margin: '4px 0 0 0', color: '#ff4d4f', fontWeight: 'bold' }}>
+                              Số lượng: {data.count} điếu
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} 
                   />
                   
                   <Bar dataKey="count" fill="#ff4d4f" radius={[4, 4, 0, 0]}>

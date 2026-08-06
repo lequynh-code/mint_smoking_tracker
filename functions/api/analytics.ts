@@ -8,53 +8,68 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
     const formattedMonth = String(monthParam).padStart(2, '0');
     const targetMonthStr = `${yearParam}-${formattedMonth}`;
 
-    // 1. Tổng số điếu & Số ngày active (Múi giờ +7)
+    // Helper: Chuẩn hóa chuỗi thời gian SQLite (Xử lý linh hoạt cả giờ UTC lẫn giờ đã convert VN)
+    // Nếu created_at lưu ISO dạng '2026-08-16T...' hoặc '2026-08-16 10:00:00'
+    const sqlDatetime = "datetime(replace(created_at, 'T', ' '))";
+
+    // 1. Tổng số điếu & Số ngày active trong tháng
     const summaryResult: any = await context.env.DB.prepare(`
       SELECT 
         COUNT(*) as total,
-        COUNT(DISTINCT DATE(datetime(created_at, '+7 hours'))) as active_days
+        COUNT(DISTINCT DATE(${sqlDatetime})) as active_days
       FROM smoking_logs 
-      WHERE user_id = ? AND strftime('%Y-%m', datetime(created_at, '+7 hours')) = ?
+      WHERE user_id = ? 
+        AND strftime('%Y-%m', ${sqlDatetime}) = ?
     `).bind(userId, targetMonthStr).first();
 
     const total = summaryResult?.total || 0;
     const activeDays = summaryResult?.active_days || 0;
+    
+    // Tính trung bình theo số ngày trong tháng để trực quan (hoặc activeDays tùy nhu cầu)
     const avgPerDay = activeDays > 0 ? (total / activeDays).toFixed(1) : '0';
     const estimatedCost = total * 1000; // 1.000đ / điếu
 
-    // 2. Dữ liệu số điếu theo từng NGÀY trong tháng (Đã sửa từ %H sang %d và GROUP BY day)
+    // 2. Dữ liệu số điếu theo từng NGÀY trong tháng
     const dailyResult: any = await context.env.DB.prepare(`
       SELECT 
-        CAST(strftime('%d', datetime(created_at, '+7 hours')) AS INTEGER) as day, 
+        CAST(strftime('%d', ${sqlDatetime}) AS INTEGER) as day, 
         COUNT(*) as count 
       FROM smoking_logs 
-      WHERE user_id = ? AND strftime('%Y-%m', datetime(created_at, '+7 hours')) = ?
+      WHERE user_id = ? 
+        AND strftime('%Y-%m', ${sqlDatetime}) = ?
       GROUP BY day
       ORDER BY day ASC
     `).bind(userId, targetMonthStr).all();
 
-    // 3. Dữ liệu phân bổ theo KHUNG GIỜ (Đã bổ sung múi giờ +7)
+    // 3. Dữ liệu phân bổ theo KHUNG GIỜ
     const hourlyResult: any = await context.env.DB.prepare(`
       SELECT 
-        CAST(strftime('%H', datetime(created_at, '+7 hours')) AS INTEGER) as hour, 
+        CAST(strftime('%H', ${sqlDatetime}) AS INTEGER) as hour, 
         COUNT(*) as count 
       FROM smoking_logs 
-      WHERE user_id = ? AND strftime('%Y-%m', datetime(created_at, '+7 hours')) = ?
+      WHERE user_id = ? 
+        AND strftime('%Y-%m', ${sqlDatetime}) = ?
       GROUP BY hour
       ORDER BY hour ASC
     `).bind(userId, targetMonthStr).all();
 
-    // Tìm khung giờ hút nhiều nhất (Peak Hour)
-    let peakHour = 'Chưa có';
-    if (hourlyResult?.results && hourlyResult.results.length > 0) {
-      const maxObj = hourlyResult.results.reduce(
+    // Tìm khung giờ cao điểm (Peak Hour)
+    let peakHour = 'Chưa có dữ liệu';
+    const hourlyList = hourlyResult?.results || [];
+    
+    if (hourlyList.length > 0) {
+      const maxObj = hourlyList.reduce(
         (max: any, item: any) => (item.count > max.count ? item : max),
-        hourlyResult.results[0]
+        hourlyList[0]
       );
-      const startH = String(maxObj.hour).padStart(2, '0');
-      const endH = String((maxObj.hour + 1) % 24).padStart(2, '0');
-      peakHour = `${startH}:00 - ${endH}:00 (${maxObj.count} điếu)`;
+      if (maxObj && maxObj.count > 0) {
+        const startH = String(maxObj.hour).padStart(2, '0');
+        const endH = String((maxObj.hour + 1) % 24).padStart(2, '0');
+        peakHour = `${startH}:00 - ${endH}:00 (${maxObj.count} điếu)`;
+      }
     }
+
+    const dailyLogs = dailyResult?.results || [];
 
     return new Response(
       JSON.stringify({
@@ -64,8 +79,9 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
         avgPerDay,
         estimatedCost,
         peakHour,
-        daily: dailyResult?.results || [],
-        hourly: hourlyResult?.results || []
+        dailyLogs, // Trả về dailyLogs trùng khớp với FE
+        daily: dailyLogs, // Backup thêm key daily
+        hourly: hourlyList
       }),
       {
         headers: { 
@@ -76,6 +92,9 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
     );
 
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
