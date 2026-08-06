@@ -207,7 +207,7 @@ export default function SmokingTracker() {
                       dataKey="count" 
                       position="top" 
                       style={{ fontSize: '11px', fontWeight: 'bold', fill: '#ff4d4f' }} 
-                      formatter={(val: number) => (val > 0 ? val : '')} 
+                      formatter={(val) => (Number(val) > 0 ? val : '')} 
                     />
                   </Bar>
                 </BarChart>
