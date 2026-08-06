@@ -1,6 +1,7 @@
 name = "mint-smoking-tracker"
 compatibility_date = "2026-08-01"
-assets = "./dist"
+[assets]
+directory = "./frontend/dist"
 
 [[d1_databases]]
 binding = "DB"
