@@ -11,10 +11,10 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
     // 1. Tổng số điếu & Số ngày active
     const summaryResult: any = await context.env.DB.prepare(`
       SELECT 
-        COUNT(*) as total,
-        COUNT(DISTINCT DATE(created_at)) as active_days
+      COUNT(*) as total,
+      COUNT(DISTINCT DATE(datetime(created_at, '+7 hours'))) as active_days
       FROM smoking_logs 
-      WHERE user_id = ? AND strftime('%Y-%m', created_at) = ?
+      WHERE user_id = ? AND strftime('%Y-%m', datetime(created_at, '+7 hours')) = ?
     `).bind(userId, targetMonthStr).first();
 
     const total = summaryResult?.total || 0;
@@ -24,11 +24,13 @@ export async function onRequestGet(context: { request: Request; env: { DB: any }
 
     // 2. Dữ liệu số điếu theo từng ngày trong tháng (Dùng vẽ biểu đồ ngày)
     const dailyResult: any = await context.env.DB.prepare(`
-      SELECT CAST(strftime('%d', created_at) AS INTEGER) as day, COUNT(*) as count 
+      SELECT 
+      CAST(strftime('%H', datetime(created_at, '+7 hours')) AS INTEGER) as hour, 
+      COUNT(*) as count 
       FROM smoking_logs 
-      WHERE user_id = ? AND strftime('%Y-%m', created_at) = ?
-      GROUP BY day
-      ORDER BY day ASC
+      WHERE user_id = ? AND strftime('%Y-%m', datetime(created_at, '+7 hours')) = ?
+      GROUP BY hour
+      ORDER BY hour ASC
     `).bind(userId, targetMonthStr).all();
 
     // 3. Dữ liệu phân bổ theo khung giờ (Dùng vẽ biểu đồ giờ / Peak Hours)
