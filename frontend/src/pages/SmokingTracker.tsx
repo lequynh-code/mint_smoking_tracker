@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, CartesianGrid } from 'recharts';
 
 export default function SmokingTracker() {
   const [count, setCount] = useState<number>(0);
@@ -95,6 +95,19 @@ export default function SmokingTracker() {
     }
   };
 
+  // --- TÍNH TOÁN DỮ LIỆU ĐẦY ĐỦ 30/31 NGÀY TRONG THÁNG ---
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const rawDailyLogs = analytics?.dailyLogs || analytics?.daily || [];
+
+  const fullMonthData = Array.from({ length: daysInMonth }, (_, i) => {
+    const dayNum = i + 1;
+    const found = rawDailyLogs.find((item: any) => Number(item.day) === dayNum);
+    return {
+      day: dayNum,
+      count: found ? found.count : 0
+    };
+  });
+
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: 480, margin: '0 auto' }}>
       <h2 style={{ textAlign: 'center' }}>🚬 Nhật Ký Hút Thuốc & Phân Tích</h2>
@@ -161,22 +174,46 @@ export default function SmokingTracker() {
             <p style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#bf360c', fontWeight: 'bold' }}>{analytics.peakHour}</p>
           </div>
 
-          {/* BIỂU ĐỒ 1: TẦN SUẤT THEO NGÀY TRONG THÁNG */}
-          {analytics.daily && analytics.daily.length > 0 && (
-            <div style={{ background: '#fff', padding: '15px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Số điếu theo ngày trong tháng</h4>
-              <div style={{ width: '100%', height: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analytics.daily}>
-                    <XAxis dataKey="day" tickLine={false} tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tickLine={false} width={25} />
-                    <Tooltip formatter={(value: any) => [`${value} điếu`, 'Số lượng']} labelFormatter={(label) => `Ngày ${label}`} />
-                    <Bar dataKey="count" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+          {/* BIỂU ĐỒ 1: TẦN SUẤT HIỂN THỊ ĐẦY ĐỦ CÁC NGÀY TRONG THÁNG */}
+          <div style={{ background: '#fff', padding: '15px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '20px' }}>
+            <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Số điếu theo ngày trong tháng {month}/{year}</h4>
+            <div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={fullMonthData} margin={{ top: 20, right: 5, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  
+                  <XAxis 
+                    dataKey="day" 
+                    tickLine={false} 
+                    axisLine={{ stroke: '#f0f0f0' }}
+                    tick={{ fontSize: 10, fill: '#8c8c8c' }}
+                    interval={1}
+                  />
+                  
+                  <YAxis 
+                    allowDecimals={false} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tick={{ fontSize: 10, fill: '#8c8c8c' }} 
+                  />
+                  
+                  <Tooltip 
+                    formatter={(value: any) => [`${value} điếu`, 'Số lượng']} 
+                    labelFormatter={(label) => `Ngày ${label}/${month}`} 
+                  />
+                  
+                  <Bar dataKey="count" fill="#ff4d4f" radius={[4, 4, 0, 0]}>
+                    <LabelList 
+                      dataKey="count" 
+                      position="top" 
+                      style={{ fontSize: '11px', fontWeight: 'bold', fill: '#ff4d4f' }} 
+                      formatter={(val: number) => (val > 0 ? val : '')} 
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          )}
+          </div>
 
           {/* CỤM PHÂN TÍCH AI INSIGHT */}
           <div style={{ background: '#f0f7ff', padding: '15px', borderRadius: '12px', border: '1px solid #bae0ff', marginTop: '20px' }}>
