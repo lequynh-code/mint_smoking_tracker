@@ -104,7 +104,7 @@ export default function SmokingTracker() {
     const found = rawDailyLogs.find((item: any) => Number(item.day) === dayNum);
     return {
       day: dayNum,
-      count: found ? found.count : 0
+      count: found ? Number(found.count) : 0 // Ép kiểu Number để chắc chắn vẽ được cột
     };
   });
 
@@ -205,9 +205,21 @@ export default function SmokingTracker() {
                   <Bar dataKey="count" fill="#ff4d4f" radius={[4, 4, 0, 0]}>
                     <LabelList 
                       dataKey="count" 
-                      position="top" 
-                      style={{ fontSize: '11px', fontWeight: 'bold', fill: '#ff4d4f' }} 
-                      formatter={(val) => (Number(val) > 0 ? val : '')} 
+                      content={({ x, y, width, value }: any) => {
+                        if (!value || Number(value) <= 0) return null;
+                        return (
+                          <text 
+                            x={Number(x) + Number(width) / 2} 
+                            y={Number(y) - 5} 
+                            fill="#ff4d4f" 
+                            fontSize={11} 
+                            fontWeight="bold" 
+                            textAnchor="middle"
+                          >
+                            {value}
+                          </text>
+                        );
+                      }} 
                     />
                   </Bar>
                 </BarChart>
